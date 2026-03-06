@@ -1,7 +1,10 @@
 import axios from "axios";
 
 // primary base URL for backend (no suffix)
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE =
+  window.location.hostname === "localhost"
+    ? "http://127.0.0.1:8000"
+    : "";
 // prefix for endpoints that sit under /api
 const API_PREFIX = `${API_BASE}/api`;
 
