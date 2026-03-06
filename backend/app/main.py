@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.agents.orchestrator import HeadOrchestratorAgent
+from app.database.db import db_manager
 
 orchestrator = HeadOrchestratorAgent()
 
@@ -18,8 +19,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.routes import world
+from app.routes import world, agent
 app.include_router(world.router)
+app.include_router(agent.router)
 
 
 @app.get("/")

@@ -165,6 +165,11 @@ Displays:
 2. **NPC Cards** - Health/mood bars, goal, position
 3. **Event Timeline** - Last 20 events in reverse order
 4. **Control Buttons** - Next Tick, Reset
+5. **Player Action Controls** - Buttons that trigger AI-driven events (explore, attack, trade, sneak).
+6. **AI Story Event Panel** - Displays generated story description and severity, with color cues.
+7. **ML Risk Analysis Panel** - Shows risk level, danger percentage bars and confidence scores.
+8. **Player Behavior Analysis** - Classification of player behavior (Explorer, Aggressive, etc.).
+9. **AI Decision Pipeline** - Horizontal visualization of the agent pipeline highlighting each stage during actions.
 
 ### **API Integration**
 

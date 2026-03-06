@@ -1,16 +1,20 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useGame } from "../context/GameContext";
 import styles from "./Dashboard.module.css";
 
 const Dashboard = () => {
   const {
     worldState,
+    storyEvent,
+    riskAssessment,
+    playerClassification,
     loading,
     error,
     tickCount,
     fetchWorldState,
     processTick,
     resetSimulation,
+    sendPlayerAction,
   } = useGame();
 
   useEffect(() => {
@@ -20,6 +24,42 @@ const Dashboard = () => {
   if (error) {
     return <div className={styles.error}>Error: {error}</div>;
   }
+
+  // pipeline animation state
+  const stages = [
+    "Player Action",
+    "Orchestrator Agent",
+    "NPC Decision Agent",
+    "Narrative Agent",
+    "Intelligence Agent",
+    "World Update",
+  ];
+  const [pipelineIndex, setPipelineIndex] = useState(-1);
+  const [highlightedEventIdx, setHighlightedEventIdx] = useState(null);
+
+  // when a new story event arrives, highlight it in feed
+  useEffect(() => {
+    if (storyEvent && storyEvent.description && worldState?.events) {
+      const idx = worldState.events.length - 1;
+      setHighlightedEventIdx(idx);
+      const timer = setTimeout(() => setHighlightedEventIdx(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [storyEvent, worldState]);
+
+  const animatePipeline = useCallback(() => {
+    stages.forEach((_, i) => {
+      setTimeout(() => {
+        setPipelineIndex(i);
+      }, i * 300);
+    });
+    setTimeout(() => setPipelineIndex(-1), stages.length * 300);
+  }, [stages]);
+
+  const handlePlayerAction = async (action) => {
+    animatePipeline();
+    await sendPlayerAction(action);
+  };
 
   if (!worldState) {
     return <div className={styles.loading}>Loading...</div>;
@@ -76,6 +116,99 @@ const Dashboard = () => {
               <span className={styles.value}>{tickCount}</span>
             </div>
           </div>
+        </section>
+
+        <section className={styles.playerActions}>
+          <h2>🎮 Player Actions</h2>
+          <div>
+            <button
+              className={styles.actionBtn}
+              onClick={() => handlePlayerAction("explore_forest")}
+              disabled={loading}
+            >
+              Explore Forest
+            </button>
+            <button
+              className={styles.actionBtn}
+              onClick={() => handlePlayerAction("attack_village")}
+              disabled={loading}
+            >
+              Attack Village
+            </button>
+            <button
+              className={styles.actionBtn}
+              onClick={() => handlePlayerAction("trade_market")}
+              disabled={loading}
+            >
+              Trade Market
+            </button>
+            <button
+              className={styles.actionBtn}
+              onClick={() => handlePlayerAction("sneak_into_castle")}
+              disabled={loading}
+            >
+              Sneak Into Castle
+            </button>
+          </div>
+        </section>
+
+        <section className={styles.aiEvent}>
+          <h2>📜 AI Story Event</h2>
+          {storyEvent ? (
+            <>
+              <p>{storyEvent.description}</p>
+              <p>
+                <strong>Severity:</strong>{" "}
+                <span
+                  className={`${styles.severity} ${storyEvent.severity ? styles[storyEvent.severity] : ""}`}
+                >
+                  {" "}
+                  {storyEvent.severity}
+                </span>
+              </p>
+            </>
+          ) : (
+            <p>No recent story event.</p>
+          )}
+        </section>
+
+        <section className={styles.riskAnalysis}>
+          <h2>⚠️ AI Risk Analysis</h2>
+          {riskAssessment ? (
+            <>
+              <p>
+                <strong>Risk Level:</strong>{" "}
+                {riskAssessment.risk_level.toUpperCase()}
+              </p>
+              <p>
+                <strong>Danger Level:</strong> {riskAssessment.danger_level}%
+              </p>
+              <div className={styles.progressBar}>
+                <div
+                  className={styles.progressFill}
+                  style={{ width: `${riskAssessment.danger_level}%` }}
+                ></div>
+              </div>
+              <p>
+                <strong>Confidence:</strong>{" "}
+                {(riskAssessment.confidence * 100).toFixed(0)}%
+              </p>
+            </>
+          ) : (
+            <p>No analysis available.</p>
+          )}
+        </section>
+
+        <section className={styles.playerAnalysis}>
+          <h2>🧠 Player Behavior Analysis</h2>
+          {playerClassification ? (
+            <p>
+              {playerClassification.charAt(0).toUpperCase() +
+                playerClassification.slice(1)}
+            </p>
+          ) : (
+            <p>Unknown</p>
+          )}
         </section>
 
         <section className={styles.npcs}>
@@ -151,12 +284,31 @@ const Dashboard = () => {
               worldState.events
                 .slice()
                 .reverse()
-                .map((event, idx) => (
-                  <div key={idx} className={styles.eventItem}>
-                    {event}
-                  </div>
-                ))}
+                .map((event, idx) => {
+                  // because we reversed, compute original index
+                  const originalIdx = worldState.events.length - 1 - idx;
+                  const isNew = originalIdx === highlightedEventIdx;
+                  return (
+                    <div
+                      key={idx}
+                      className={`${styles.eventItem} ${isNew ? styles.new : ""}`}
+                    >
+                      {isNew ? "NEW EVENT: " + event : event}
+                    </div>
+                  );
+                })}
           </div>
+        </section>
+
+        <section className={styles.pipeline}>
+          {stages.map((label, idx) => (
+            <div
+              key={idx}
+              className={`${styles.stage} ${idx === pipelineIndex ? styles.active : ""}`}
+            >
+              {label} {idx < stages.length - 1 && "→"}
+            </div>
+          ))}
         </section>
       </div>
     </div>

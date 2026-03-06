@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 import gameAPI from "../api/gameAPI";
 
+// base URL for backend calls (without /api prefix)
+const API_BASE = "http://127.0.0.1:8000";
+
 const GameContext = createContext();
 
 export const useGame = () => {
@@ -15,6 +18,9 @@ export const GameProvider = ({ children }) => {
   const [worldState, setWorldState] = useState(null);
   const [recentEvents, setRecentEvents] = useState([]);
   const [actionHistory, setActionHistory] = useState([]);
+  const [storyEvent, setStoryEvent] = useState(null);
+  const [riskAssessment, setRiskAssessment] = useState(null);
+  const [playerClassification, setPlayerClassification] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [tickCount, setTickCount] = useState(0);
@@ -80,10 +86,66 @@ export const GameProvider = ({ children }) => {
     }
   }, []);
 
+  const sendPlayerAction = useCallback(async (action) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const payload = {
+        player_id: "player_1",
+        action,
+        type: "movement",
+      };
+      const response = await fetch(`${API_BASE}/agent/player_action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error(`Server error ${response.status}`);
+      }
+      const data = await response.json();
+      // update world state if backend provides summary or new state
+      if (data.world_state_summary) {
+        setWorldState((prev) => ({
+          ...(prev || {}),
+          ...data.world_state_summary,
+        }));
+      }
+      // update AI panels
+      setStoryEvent(data.story_event || null);
+      setRiskAssessment(data.risk_assessment || null);
+      setPlayerClassification(
+        data.player_type ? data.player_type.classification : null,
+      );
+      // append story event to world events & recent events for feed
+      if (data.story_event && data.story_event.description) {
+        const desc = data.story_event.description;
+        setWorldState((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            events: prev.events ? [...prev.events, desc] : [desc],
+          };
+        });
+        setRecentEvents((prev) => [...prev, desc]);
+      }
+      // record action history
+      setActionHistory((prev) => [...prev, { player_id: "player_1", action }]);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error sending player action:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const value = {
     worldState,
     recentEvents,
     actionHistory,
+    storyEvent,
+    riskAssessment,
+    playerClassification,
     loading,
     error,
     tickCount,
@@ -91,6 +153,7 @@ export const GameProvider = ({ children }) => {
     fetchEvents,
     processTick,
     resetSimulation,
+    sendPlayerAction,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
