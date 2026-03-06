@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from "react";
 import gameAPI from "../api/gameAPI";
 
 // base URL for backend calls (without /api prefix)
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "http://115.247.219.102:8000";
 
 const GameContext = createContext();
 
