@@ -350,6 +350,88 @@
   }
 }
 
+/* timeline styles */
+.timeline {
+  position: relative;
+  margin-top: 20px;
+  padding-left: 30px;
+  border-left: 2px solid #667eea;
+}
+.timelineItem {
+  position: relative;
+  margin-bottom: 20px;
+  padding-left: 20px;
+  opacity: 0;
+  animation: fadeIn 0.6s forwards;
+}
+.timelineItem.new {
+  animation: fadeInNew 1s forwards;
+}
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes fadeInNew {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.marker {
+  width: 12px;
+  height: 12px;
+  background: #667eea;
+  border: 2px solid white;
+  border-radius: 50%;
+  position: absolute;
+  left: -8px;
+  top: 3px;
+}
+.eventContent {
+  font-size: 0.95em;
+  color: #333;
+}
+.timeIcon {
+  margin-right: 6px;
+}
+
+/* badges */
+.aiBadge {
+  font-size: 0.75em;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.decisionBadge {
+  display: inline-block;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+/* animation for story text cursor maybe */
+.animatedStory {
+  min-height: 3em;
+  white-space: pre-wrap;
+  font-family: monospace;
+}
+
+.generatedBy {
+  font-size: 0.85em;
+  color: #666;
+  margin-top: 4px;
+}
+
 /* modify grid for flexibility */
 .mainContent {
   display: grid;

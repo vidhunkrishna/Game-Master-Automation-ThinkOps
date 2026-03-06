@@ -1,17 +1,22 @@
 """NPC Decision Agent - Makes goal-driven action decisions."""
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from app.models.world import WorldState, NPCState, NPCAction
+from app.services.npc_memory_manager import NPCMemoryManager
 
 
 class NPCDecisionAgent:
     """
-    Goal-driven NPC agent that uses rule-based logic and utility scoring
-    to decide actions based on world state.
+    Goal-driven NPC agent that uses behavior tree logic and memory
+    to decide actions based on world state and past interactions.
     """
-    
-    def __init__(self):
+
+    def __init__(self, memory_manager: Optional[NPCMemoryManager] = None):
         """Initialize NPC decision agent."""
+        self.memory_manager = memory_manager
+        self.decision_rules = self._setup_rules()
+        # previous_decisions now stores the last chosen action key (string)
+        self.previous_decisions: Dict[str, str] = {}
         self.decision_rules = self._setup_rules()
         # previous_decisions now stores the last chosen action key (string)
         self.previous_decisions: Dict[str, str] = {}
@@ -27,45 +32,66 @@ class NPCDecisionAgent:
     
     async def decide_action(self, npc: NPCState, world_state: WorldState) -> NPCAction:
         """
-        Decide action for an NPC based on:
-        1. Current health and mood
-        2. Goal and available options
-        3. Utility scoring of each option
-        4. World state danger level
+        Decide action using behavior tree logic:
+        1. Check danger level
+        2. Check health
+        3. Check memory of player actions
+        4. Check mood
+        5. Default to patrol
         """
-        # compute utilities according to upgrade rules
-        utilities: Dict[str, float] = {
-            "flee": world_state.danger_level * 0.8,
-            "rest": (100 - npc.health) * 0.6,
-            "search_food": 70 if npc.goal == "find_food" else 20,
-            "patrol": 50 if npc.goal == "protect_area" else 10,
-            "idle": 10.0,
-        }
-
-        # apply dynamic repetition penalty to discourage same action twice
-        previous = self.previous_decisions.get(npc.id)
-        if previous and previous in utilities:
-            utilities[previous] *= 0.7  # reduce by 30%
+        print("Behavior tree decision executed")
         
-        # clamp to prevent negative utilities
-        for action in utilities:
-            utilities[action] = max(0.0, utilities[action])
-
-        # select highest-utility action
-        chosen_action = max(utilities, key=utilities.get)
-        reason = f"Highest utility for {chosen_action}: {utilities[chosen_action]:.1f}."
-
-        # store string for repetition penalty in next tick
+        # Behavior Tree Logic
+        chosen_action = self._evaluate_behavior_tree(npc, world_state)
+        
+        # Apply repetition penalty
+        previous = self.previous_decisions.get(npc.id)
+        if previous and previous == chosen_action:
+            # If same action as last time, sometimes choose alternative
+            alternatives = ["patrol", "rest", "idle"]
+            if chosen_action in alternatives:
+                alternatives.remove(chosen_action)
+            chosen_action = alternatives[0] if alternatives else "idle"
+        
         self.previous_decisions[npc.id] = chosen_action
-
+        
+        reasoning = f"Behavior tree selected: {chosen_action}"
+        
         return NPCAction(
             npc_id=npc.id,
             action_type=chosen_action,
             target="none",
-            priority=utilities.get(chosen_action, 0.0),
-            expected_outcome=reason,
-            reasoning=reason,
+            priority=1.0,
+            expected_outcome=f"Executing {chosen_action}",
+            reasoning=reasoning,
         )
+    
+    def _evaluate_behavior_tree(self, npc: NPCState, world_state: WorldState) -> str:
+        """Evaluate behavior tree nodes in priority order."""
+        
+        # 1. High Danger Check
+        if world_state.danger_level > 70:
+            return "defend"
+        
+        # 2. Low Health Check
+        if npc.health < 30:
+            return "retreat"
+        
+        # 3. Memory-based hostility check
+        if self.memory_manager and self.memory_manager.has_memory_of_action(npc.id, "player_attack"):
+            return "hostile"
+        
+        # 4. Memory-based friendliness check
+        if self.memory_manager and self.memory_manager.has_memory_of_action(npc.id, "player_trade"):
+            if npc.mood_level > 60:
+                return "assist"
+        
+        # 5. Mood-based social behavior
+        if npc.mood_level > 60:
+            return "assist"
+        
+        # 6. Default patrol behavior
+        return "patrol"
     
     def _generate_candidate_actions(self, npc: NPCState, world_state: WorldState) -> list[NPCAction]:
         """Generate possible actions based on NPC state and goal."""

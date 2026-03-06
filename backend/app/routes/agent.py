@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, Optional
 from app.services.agent_pipeline import AgentPipeline
 from app.services.world_state_manager import WorldStateManager
+from app.agents.orchestrator import HeadOrchestratorAgent
 
 
 # Initialize router
@@ -12,13 +13,16 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 # Global instances
 _pipeline: Optional[AgentPipeline] = None
 _world_state_manager: Optional[WorldStateManager] = None
+_orchestrator: Optional[HeadOrchestratorAgent] = None
 
 
 def get_pipeline() -> AgentPipeline:
     """Dependency to get the agent pipeline."""
-    global _pipeline
+    global _pipeline, _orchestrator
+    if _orchestrator is None:
+        _orchestrator = HeadOrchestratorAgent()
     if _pipeline is None:
-        _pipeline = AgentPipeline(world_state_manager=get_world_state_manager())
+        _pipeline = AgentPipeline(orchestrator_agent=_orchestrator, world_state_manager=get_world_state_manager())
     return _pipeline
 
 

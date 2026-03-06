@@ -3,7 +3,9 @@ import asyncio
 from typing import Dict, Any
 from app.models.world import WorldState, NPCState, NPCAction, ActionResult
 from app.agents.npc_agent import NPCDecisionAgent
+from app.services.npc_memory_manager import NPCMemoryManager
 from datetime import datetime
+import random
 
 
 class HeadOrchestratorAgent:
@@ -15,7 +17,8 @@ class HeadOrchestratorAgent:
     def __init__(self):
         """Initialize orchestrator with default world state."""
         self.world_state = self._initialize_world_state()
-        self.npc_agent = NPCDecisionAgent()
+        self.memory_manager = NPCMemoryManager()
+        self.npc_agent = NPCDecisionAgent(self.memory_manager)
         self.tick_count = 0
         self.action_history: list[ActionResult] = []
         self.max_history_size = 100
@@ -60,10 +63,12 @@ class HeadOrchestratorAgent:
             ),
         }
         
+        # start with a moderately tense environment
+        initial_danger = random.uniform(30.0, 50.0)
         return WorldState(
             time=0,
             time_of_day="morning",
-            danger_level=20.0,
+            danger_level=initial_danger,
             weather="sunny",
             npcs=initial_npcs,
             events=["Simulation started"]
@@ -126,6 +131,17 @@ class HeadOrchestratorAgent:
         # Gradually reduce danger if high
         if self.world_state.danger_level > 20:
             self.world_state.danger_level -= 1.0
+
+        # Natural fluctuation each tick based on time of day
+        # environmental randomness keeps world dynamic
+        if self.world_state.time_of_day == "night":
+            self.world_state.danger_level += random.uniform(2, 8)
+        else:
+            self.world_state.danger_level += random.uniform(-2, 3)
+
+        # clamp and round danger level 0-100
+        self.world_state.danger_level = max(0.0, min(100.0, self.world_state.danger_level))
+        self.world_state.danger_level = round(self.world_state.danger_level, 1)
         
         # Simulate passive health recovery
         for npc in self.world_state.npcs.values():
@@ -171,6 +187,9 @@ class HeadOrchestratorAgent:
         elif action.action_type == "attack":
             npc.health -= 5.0
             self.world_state.danger_level += 10.0
+            # clamp/round
+            self.world_state.danger_level = max(0.0, min(100.0, self.world_state.danger_level))
+            self.world_state.danger_level = round(self.world_state.danger_level, 1)
             changes["health"] = npc.health
             changes["danger_level"] = self.world_state.danger_level
             message = f"{npc.name} attacked {action.target}"
@@ -201,6 +220,8 @@ class HeadOrchestratorAgent:
             npc.position_x += 2.0
             npc.position_y += 2.0
             self.world_state.danger_level = max(0.0, self.world_state.danger_level - 3.0)
+            # round after reduction
+            self.world_state.danger_level = round(self.world_state.danger_level, 1)
             changes["position"] = {"x": npc.position_x, "y": npc.position_y}
             changes["danger_level"] = self.world_state.danger_level
             message = f"{npc.name} patrolled the area"
@@ -230,6 +251,23 @@ class HeadOrchestratorAgent:
     def get_action_history(self) -> list[ActionResult]:
         """Get recent action history."""
         return self.action_history[-10:]  # Return last 10 actions
+    
+    def process_player_action(self, player_action: str) -> None:
+        """Process a player action, adjust danger level and update NPC memories."""
+        # adjust danger based on player input
+        if player_action == "explore_forest":
+            self.world_state.danger_level += random.uniform(3, 8)
+        elif player_action == "attack_village":
+            self.world_state.danger_level += random.uniform(15, 25)
+        elif player_action == "trade_market":
+            self.world_state.danger_level += random.uniform(-3, 2)
+        elif player_action == "sneak_into_castle":
+            self.world_state.danger_level += random.uniform(8, 15)
+        # clamp and round
+        self.world_state.danger_level = max(0.0, min(100.0, self.world_state.danger_level))
+        self.world_state.danger_level = round(self.world_state.danger_level, 1)
+
+        self.memory_manager.update_memory_after_player_action(player_action, self.world_state.time)
     
     def reset_simulation(self) -> None:
         """Reset simulation to initial state."""

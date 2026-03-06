@@ -2,6 +2,8 @@
 import uuid
 import random
 import os
+import requests
+import json
 from typing import Optional
 from app.models.world import WorldState
 from openai import OpenAI
@@ -19,6 +21,7 @@ class NarrativeAgent:
     def __init__(self):
         """Initialize narrative agent with event pools."""
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.ollama_url = "http://localhost:11434/api/generate"
         self.event_templates = self._setup_templates()
         # procedural action-specific pools
         self.explore_events = [
@@ -53,11 +56,13 @@ class NarrativeAgent:
         ]
         self.severity_levels = ["low", "medium", "high"]
 
-    def generate_llm_story(self, world_state: WorldState, action: str) -> str:
-        """Generate a story event using OpenAI LLM."""
-        print("[NarrativeAgent] Generating story using LLM")
-        prompt = f"""You are an AI narrative engine for a dynamic simulation game.
-Generate a short immersive one-sentence story event based on the following world state.
+    def generate_ollama_story(self, world_state: WorldState, action: str) -> str:
+        """Generate a story event using Ollama LLM."""
+        print("Ollama narrative generated")
+        
+        prompt = f"""You are an AI narrative engine for a simulation game.
+
+Generate ONE short fantasy story event in ONE sentence with a maximum of 20 words based on the following world state.
 
 Player Action: {action}
 World Time: {world_state.time}
@@ -66,8 +71,44 @@ Weather: {world_state.weather}
 Danger Level: {world_state.danger_level}
 NPC Count: {len(world_state.npcs)}
 
-Generate a one-sentence narrative event."""
+Output only the single sentence event."""
         
+        payload = {
+            "model": "phi3",
+            "prompt": prompt,
+            "stream": False
+        }
+        
+        try:
+            response = requests.post(self.ollama_url, json=payload, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            description = data.get("response", "")
+            # safe cleanup: strip, capitalize, word-limit
+            if description:
+                description = description.strip()
+                # capitalize first letter
+                description = description[0].upper() + description[1:]
+                description = " ".join(description.split()[:20])
+            return description
+        except Exception as e:
+            print(f"Ollama failed — using fallback event: {e}")
+            return None
+
+    def generate_llm_story(self, world_state: WorldState, action: str) -> str:
+        """Generate a story event using OpenAI LLM (fallback)."""
+        print("[NarrativeAgent] Generating story using OpenAI fallback")
+        prompt = f"""You are an AI narrative engine for a dynamic simulation game.
+Generate ONE short fantasy story event in ONE sentence with a maximum of 20 words based on the following world state.
+
+Player Action: {action}
+World Time: {world_state.time}
+Time of Day: {world_state.time_of_day}
+Weather: {world_state.weather}
+Danger Level: {world_state.danger_level}
+NPC Count: {len(world_state.npcs)}
+
+Output only the single sentence event."""        
         messages = [
             {"role": "system", "content": "You are an AI narrative generator that creates dynamic game events."},
             {"role": "user", "content": prompt}
@@ -235,9 +276,13 @@ Generate a one-sentence narrative event."""
 
         # select description based on action and world state
         try:
-            description = self.generate_llm_story(world_state, action)
+            ollama_description = self.generate_ollama_story(world_state, action)
+            if ollama_description:
+                description = ollama_description
+            else:
+                raise Exception("Ollama returned empty response")
         except Exception as e:
-            print("[NarrativeAgent] LLM failed, using procedural fallback:", e)
+            print(f"Ollama failed — using fallback event: {e}")
             if action == "explore_forest":
                 description = random.choice(self.explore_events)
             elif action == "attack_village":
@@ -266,6 +311,17 @@ Generate a one-sentence narrative event."""
                 severity = random.choice(self.severity_levels)
         else:
             severity = random.choice(self.severity_levels)
+
+        # clean up description length and stray characters
+        description = description.strip()
+        # limit to first 20 words
+        description = " ".join(description.split()[:20])
+        # only drop stray leading 's ' or 'S ' if it appears exactly
+        if description.startswith(("s ", "S ")):
+            description = description[2:].strip()
+        # ensure first letter uppercase for presentation
+        if description:
+            description = description[0].upper() + description[1:]
 
         return {
             "event_id": str(uuid.uuid4()),

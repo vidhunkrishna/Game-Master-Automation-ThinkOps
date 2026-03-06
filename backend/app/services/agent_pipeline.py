@@ -28,7 +28,9 @@ class AgentPipeline:
         """
         self.orchestrator = orchestrator_agent
         self.world_state_manager = world_state_manager or WorldStateManager()
-        self.npc_agent = NPCDecisionAgent()
+        # Initialize NPC agent with memory manager from orchestrator
+        memory_manager = orchestrator_agent.memory_manager if orchestrator_agent else None
+        self.npc_agent = NPCDecisionAgent(memory_manager)
         self.narrative_agent = NarrativeAgent()
         self.intelligence_agent = IntelligenceAgent()
         
@@ -57,7 +59,9 @@ class AgentPipeline:
                 "type": player_action.get("type", "other"),
             })
 
-            # Step 2: Fetch current world state
+            # Step 1.5: Update NPC memory after player action
+            if self.orchestrator:
+                self.orchestrator.process_player_action(action)
             if self.orchestrator:
                 world_state = self.orchestrator.world_state
             else:
@@ -95,9 +99,10 @@ class AgentPipeline:
             # Step 7: Update world state
             if self.orchestrator:
                 await self.orchestrator.process_tick()
-            
-            # Log event in database
-            self.world_state_manager.log_event(story_event)
+
+            # ensure danger level is clean after tick as well
+            world_state.danger_level = max(0.0, min(100.0, world_state.danger_level))
+            world_state.danger_level = round(world_state.danger_level, 1)
             
             # Update risk analytics
             avg_health = self._calculate_avg_npc_health(world_state)
